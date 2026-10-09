@@ -1,20 +1,21 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { ScanStatus } from "../api/types";
+import type { Library, ScanStatus } from "../api/types";
+import FolderPicker from "../components/FolderPicker";
 import { IconFolder, IconPlus, IconRefresh, IconTrash } from "../components/Icons";
 import { ErrorState, Spinner } from "../components/States";
 import { useAuth } from "../context/AuthContext";
 import { formatDate, formatRelative } from "../lib/format";
+import { parentPath } from "../lib/paths";
 import { useAsync } from "../lib/hooks";
 
-function ScanPanel() {
+/** Polls scan status every 2s while a scan runs, every 15s otherwise. `refresh()` polls right away. */
+function useScanStatus() {
   const [status, setStatus] = useState<ScanStatus | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
-  const libs = useAsync(() => api.libraries(), [status?.lastScanAt]);
+  const [nonce, setNonce] = useState(0);
 
-  // Poll every 2s while a scan runs, every 15s otherwise.
   useEffect(() => {
     let alive = true;
     let timer: number | undefined;
@@ -36,7 +37,17 @@ function ScanPanel() {
       alive = false;
       window.clearTimeout(timer);
     };
-  }, [starting]);
+  }, [nonce]);
+
+  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+  return { status, setStatus, err, setErr, refresh };
+}
+
+type ScanState = ReturnType<typeof useScanStatus>;
+
+function ScanPanel({ scan }: { scan: ScanState }) {
+  const { status, setStatus, err, setErr, refresh } = scan;
+  const [starting, setStarting] = useState(false);
 
   const start = async () => {
     setStarting(true);
@@ -47,6 +58,7 @@ function ScanPanel() {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setStarting(false);
+      refresh();
     }
   };
 
@@ -82,16 +94,219 @@ function ScanPanel() {
           </span>
         </div>
       </div>
-      <ul className="lib-list">
-        {(libs.data ?? []).map((l) => (
-          <li key={l.id}>
-            <IconFolder size={18} />
-            <strong>{l.name}</strong>
-            <code>{l.path}</code>
-            <span className="muted">{l.itemCount.toLocaleString()} items</span>
-          </li>
-        ))}
-      </ul>
+    </section>
+  );
+}
+
+type RowMode = "view" | "rename" | "remove";
+
+function LibraryRow({
+  lib,
+  scanning,
+  onChangeFolder,
+  onChanged,
+}: {
+  lib: Library;
+  scanning: boolean;
+  onChangeFolder: (lib: Library) => void;
+  onChanged: (message?: string) => void;
+}) {
+  const [mode, setMode] = useState<RowMode>("view");
+  const [name, setName] = useState(lib.name);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const nameId = useId();
+
+  const cancel = () => {
+    setMode("view");
+    setErr(null);
+    setName(lib.name);
+  };
+
+  const rename = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      const updated = await api.updateLibrary(lib.id, { name: name.trim() });
+      setMode("view");
+      onChanged(`Renamed to “${updated.name}”.`);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : String(ex));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.deleteLibrary(lib.id);
+      onChanged(`Removed “${lib.name}”.`);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : String(ex));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <li className={`folder-row ${mode !== "view" ? "editing" : ""}`}>
+      <div className="folder-main">
+        <IconFolder size={20} className="folder-icon" />
+        <div className="folder-text">
+          <strong>{lib.name}</strong>
+          <code className="path-tail" title={lib.path}>
+            <bdi>{lib.path}</bdi>
+          </code>
+        </div>
+        <span className="folder-count muted">
+          {lib.itemCount === 0 && scanning ? "Scanning…" : `${lib.itemCount.toLocaleString()} ${lib.itemCount === 1 ? "item" : "items"}`}
+        </span>
+        {mode === "view" ? (
+          <div className="folder-actions">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChangeFolder(lib)}>
+              Change folder
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setMode("rename")}>
+              Rename
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm btn-danger" onClick={() => setMode("remove")}>
+              Remove
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {mode === "rename" ? (
+        <form className="folder-inline" onSubmit={rename}>
+          <label className="field" htmlFor={nameId}>
+            <span>Name</span>
+            <input
+              id={nameId}
+              value={name}
+              maxLength={100}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && cancel()}
+              autoFocus
+              required
+            />
+          </label>
+          <div className="folder-inline-actions">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={cancel}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !name.trim() || name.trim() === lib.name}>
+              Save
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {mode === "remove" ? (
+        <div className="folder-inline confirm" role="group" aria-label={`Remove ${lib.name}`}>
+          <p>
+            Remove <strong>{lib.name}</strong>? Its {lib.itemCount.toLocaleString()} {lib.itemCount === 1 ? "item" : "items"} and watch progress are
+            removed from Home Centre. Files on disk are not touched.
+          </p>
+          <div className="folder-inline-actions">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={cancel} autoFocus>
+              Cancel
+            </button>
+            <button type="button" className="btn btn-sm btn-danger-solid" onClick={remove} disabled={busy}>
+              <IconTrash size={15} /> {busy ? "Removing…" : "Remove folder"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {err ? (
+        <div className="form-error" role="alert">
+          {err}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+type PickerState = { mode: "add" } | { mode: "change"; lib: Library } | null;
+
+function MediaFoldersPanel({ scan }: { scan: ScanState }) {
+  const { status, refresh } = scan;
+  const libs = useAsync(() => api.libraries(), [status?.lastScanAt, status?.running, status?.itemCount]);
+  const [picker, setPicker] = useState<PickerState>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const changed = (message?: string) => {
+    libs.reload();
+    refresh();
+    setNotice(message ?? null);
+  };
+
+  const submit = async (path: string, name: string | undefined) => {
+    if (!picker) return;
+    if (picker.mode === "add") {
+      const lib = await api.createLibrary({ path, name });
+      changed(`Added “${lib.name}”. Scanning it now…`);
+    } else {
+      if (path === picker.lib.path) {
+        setPicker(null);
+        return;
+      }
+      const lib = await api.updateLibrary(picker.lib.id, { path });
+      changed(`“${lib.name}” now points to ${lib.path}. Re-scanning…`);
+    }
+    setPicker(null);
+  };
+
+  const list = libs.data ?? [];
+  return (
+    <section className="panel" aria-labelledby="media-folders-title">
+      <header className="panel-head">
+        <div>
+          <h2 id="media-folders-title">Media folders</h2>
+          <p className="muted">Folders on the server that are scanned for movies, shows, music and photos.</p>
+        </div>
+        <button type="button" className="btn btn-primary" onClick={() => setPicker({ mode: "add" })}>
+          <IconPlus size={16} /> Add folder
+        </button>
+      </header>
+      {notice ? (
+        <div className="notice" role="status">
+          {notice}
+        </div>
+      ) : null}
+      {libs.error && !libs.data ? <ErrorState error={libs.error} onRetry={libs.reload} /> : null}
+      {libs.loading && !libs.data ? <Spinner /> : null}
+      {libs.data && list.length === 0 ? (
+        <div className="folders-empty">
+          <IconFolder size={28} />
+          <p>No media folders yet. Add one to start building your library.</p>
+        </div>
+      ) : null}
+      {list.length > 0 ? (
+        <ul className="folder-list">
+          {list.map((l) => (
+            <LibraryRow
+              key={`${l.id}:${l.name}`}
+              lib={l}
+              scanning={Boolean(status?.running)}
+              onChangeFolder={(lib) => setPicker({ mode: "change", lib })}
+              onChanged={changed}
+            />
+          ))}
+        </ul>
+      ) : null}
+      {picker ? (
+        <FolderPicker
+          title={picker.mode === "add" ? "Add media folder" : `Change folder for “${picker.lib.name}”`}
+          initialPath={picker.mode === "change" ? parentPath(picker.lib.path) : null}
+          withName={picker.mode === "add"}
+          submitLabel={picker.mode === "add" ? "Add this folder" : "Use this folder"}
+          onSubmit={submit}
+          onClose={() => setPicker(null)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -185,6 +400,7 @@ function UsersPanel() {
 
 export default function Admin() {
   const { user } = useAuth();
+  const scan = useScanStatus();
   if (user && !user.isAdmin) return <Navigate to="/" replace />;
   return (
     <div className="page admin">
@@ -194,7 +410,8 @@ export default function Admin() {
           <p className="muted">Server administration</p>
         </div>
       </header>
-      <ScanPanel />
+      <ScanPanel scan={scan} />
+      <MediaFoldersPanel scan={scan} />
       <UsersPanel />
     </div>
   );

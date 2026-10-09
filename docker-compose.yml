@@ -15,7 +15,8 @@ services:
     ports:
       - "8096:8096"
     environment:
-      MEDIA_DIRS: /media
+      MEDIA_DIRS: /media              # first-run seed only; manage folders in Settings afterwards
+      BROWSE_ROOTS: /media,/host      # what the Settings folder picker may show
       DATA_DIR: /data
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
@@ -24,6 +25,7 @@ services:
       TZ: ${TZ:-Africa/Johannesburg}
     volumes:
       - ${MEDIA_PATH:-./media}:/media:ro
+      - ${BROWSE_PATH:-./media}:/host:ro
       - home-centre-data:/data
 
   web:

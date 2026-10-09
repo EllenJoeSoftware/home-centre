@@ -15,7 +15,7 @@ The API contract shared by every client is in [`docs/API.md`](docs/API.md).
 ## Quick start (server + web)
 
 ```bash
-cp .env.example .env        # set MEDIA_PATH to your media folder and ADMIN_PASSWORD
+cp .env.example .env        # set MEDIA_PATH, BROWSE_PATH and ADMIN_PASSWORD
 docker compose up -d        # pulls images from GHCR (add --build to build locally)
 ```
 
@@ -23,7 +23,7 @@ docker compose up -d        # pulls images from GHCR (add --build to build local
 - Apps connect to: `http://<server-ip>:8096`
 - Log in with `ADMIN_USER` / `ADMIN_PASSWORD`. Change the default password before exposing anything.
 
-The server scans `/media` at startup and then every `SCAN_INTERVAL_MINUTES` minutes. Admins can also start a rescan from **Settings** in the web UI. Suggested folder layout:
+The server scans its media folders (initially just `/media`) at startup and then every `SCAN_INTERVAL_MINUTES` minutes. Admins can also start a rescan from **Settings** in the web UI. Suggested folder layout:
 
 ```
 media/
@@ -32,6 +32,18 @@ media/
   Music/Artist/Album/01 Track.mp3
   Photos/2025/IMG_0001.jpg
 ```
+
+### Managing media folders
+
+The folders that get scanned (libraries) are stored in the server database and managed from **Settings → Media folders** in the web UI (admins only):
+
+- **Add folder** opens a folder picker. Pick a location, click into folders (the green badge shows how many media files sit directly in each one), then **Add this folder**. Indexing starts straight away.
+- **Change folder** points an existing library at another folder. Items from the old folder, including watch progress, are dropped and the new folder is scanned.
+- **Rename** changes the display name. **Remove** asks for confirmation inline, then forgets the library and its items. Files on disk are never touched.
+
+The picker can only see the server's `BROWSE_ROOTS`. In Docker these are `/media` (your `MEDIA_PATH`) and `/host`, which is the read-only mount of `BROWSE_PATH` from `.env`. Point `BROWSE_PATH` at a whole drive (`D:/`) or your user folder (`C:/Users/Wycliffe`) to pick any folder under it. Changing `BROWSE_PATH` requires `docker compose up -d` to recreate the container. A library cannot sit inside another one or contain one.
+
+`MEDIA_DIRS` only seeds the list on the very first start. After that, the list in Settings is what counts.
 
 Files the device can play natively are streamed directly with HTTP range support. Anything else, such as AVI or MKV with AC3 audio, is transcoded on the fly to HLS (H.264/AAC) by ffmpeg in the server container. SRT/VTT subtitles placed next to a video are picked up automatically.
 
@@ -65,7 +77,7 @@ GHCR packages are private by default. To pull them without logging in, make them
 
 ```bash
 # server (needs ffmpeg on PATH)
-cd server && npm ci && MEDIA_DIRS=/path/to/media DATA_DIR=./.data ADMIN_PASSWORD=dev npm run dev
+cd server && npm ci && MEDIA_DIRS=/path/to/media BROWSE_ROOTS=/path/to DATA_DIR=./.data ADMIN_PASSWORD=dev npm run dev
 # web (proxies /api to localhost:8096)
 cd web && npm ci && npm run dev
 # android (JDK 17 + Android SDK)

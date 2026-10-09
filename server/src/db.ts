@@ -68,6 +68,14 @@ const MIGRATIONS: string[] = [
     value TEXT NOT NULL
   );
   `,
+  `
+  CREATE TABLE libraries (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    path TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export function migrate(db: DB): void {

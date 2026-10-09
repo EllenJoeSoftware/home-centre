@@ -58,6 +58,48 @@ export interface Library {
   itemCount: number;
 }
 
+/** Body of `POST /api/libraries` (admin). `name` defaults to the folder name. */
+export interface NewLibrary {
+  path: string;
+  name?: string;
+}
+
+/** Body of `PATCH /api/libraries/:id` (admin). Changing `path` keeps the id and re-indexes. */
+export interface LibraryUpdate {
+  name?: string;
+  path?: string;
+}
+
+/** A top-level folder of the admin folder browser (one of the server's BROWSE_ROOTS). */
+export interface BrowseRoot {
+  name: string;
+  path: string;
+}
+
+/** `GET /api/fs/roots` */
+export interface BrowseRoots {
+  roots: BrowseRoot[];
+}
+
+export interface BrowseDir {
+  name: string;
+  path: string;
+  /** Media files directly inside this folder (not recursive). */
+  mediaCount: number;
+}
+
+/** `GET /api/fs/browse?path=` */
+export interface BrowseListing {
+  path: string;
+  /** null when `path` is a browse root. */
+  parent: string | null;
+  dirs: BrowseDir[];
+  /** Media files directly inside `path` (not recursive). */
+  mediaFiles: number;
+  /** true when the folder has more than 1000 sub-folders and the list was cut. */
+  truncated: boolean;
+}
+
 export interface Page<T> {
   items: T[];
   total: number;

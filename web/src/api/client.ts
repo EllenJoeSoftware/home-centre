@@ -1,10 +1,14 @@
 import { getToken } from "./token";
 import type {
+  BrowseListing,
+  BrowseRoots,
   FolderListing,
   Library,
+  LibraryUpdate,
   LoginResponse,
   MediaItem,
   MediaQuery,
+  NewLibrary,
   NewUser,
   Page,
   Progress,
@@ -150,6 +154,12 @@ export const api = {
   libraries: () => request<Library[]>("GET", "/libraries"),
   startScan: () => request<{ started: boolean }>("POST", "/libraries/scan"),
   scanStatus: () => request<ScanStatus>("GET", "/scan/status"),
+  createLibrary: (lib: NewLibrary) => request<Library>("POST", "/libraries", { body: lib }),
+  updateLibrary: (id: string, update: LibraryUpdate) => request<Library>("PATCH", `/libraries/${enc(id)}`, { body: update }),
+  deleteLibrary: (id: string) => request<{ deleted: boolean }>("DELETE", `/libraries/${enc(id)}`),
+
+  fsRoots: () => request<BrowseRoots>("GET", "/fs/roots"),
+  fsBrowse: (path: string, signal?: AbortSignal) => request<BrowseListing>("GET", "/fs/browse", { query: { path }, signal }),
 
   media: (q: MediaQuery = {}, signal?: AbortSignal) =>
     request<Page<MediaItem>>("GET", "/media", { query: { ...q }, signal }),

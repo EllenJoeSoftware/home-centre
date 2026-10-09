@@ -25,6 +25,7 @@ RUN apt-get update \
 ENV NODE_ENV=production \
     PORT=8096 \
     MEDIA_DIRS=/media \
+    BROWSE_ROOTS=/media,/host \
     DATA_DIR=/data
 
 WORKDIR /app
@@ -33,7 +34,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 
 # Non-root user (the node image ships "node" uid 1000); /data must be writable by it.
-RUN mkdir -p /media /data && chown node:node /data
+RUN mkdir -p /media /host /data && chown node:node /data
 USER node
 
 EXPOSE 8096

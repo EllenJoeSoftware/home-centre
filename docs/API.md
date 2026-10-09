@@ -21,9 +21,9 @@ home-centre/
 ## Server basics
 
 - Listens on port **8096** (env `PORT`). Base path for API: `/api`.
-- Env vars: `MEDIA_DIRS` (comma-separated absolute paths, default `/media`), `DATA_DIR` (default `/data`, holds `homecentre.db` and `cache/`), `ADMIN_USER` (default `admin`), `ADMIN_PASSWORD` (default `admin` — logs a warning), `JWT_SECRET` (if unset, generated once and persisted in DATA_DIR), `SCAN_INTERVAL_MINUTES` (default 60, 0 disables), `FFMPEG_PATH`/`FFPROBE_PATH` (default `ffmpeg`/`ffprobe` on PATH), `CORS_ORIGIN` (default `*`).
-- Docker image contains ffmpeg. Volumes: `/media` (read-only) and `/data`.
-- Scans media dirs on startup and on interval; probes with ffprobe (duration, width, height, codecs). Extracts video thumbnail (frame at 10% duration) to `DATA_DIR/cache/thumbs/<id>.jpg`. Uses embedded cover art for audio if present.
+- Env vars: `MEDIA_DIRS` (comma-separated absolute paths, default `/media`; **first-run seed only**, see Libraries), `BROWSE_ROOTS` (comma-separated absolute paths, default `/media,/host`; the only trees the admin folder browser may show and libraries may point into; roots that do not exist are skipped), `DATA_DIR` (default `/data`, holds `homecentre.db` and `cache/`), `ADMIN_USER` (default `admin`), `ADMIN_PASSWORD` (default `admin` — logs a warning), `JWT_SECRET` (if unset, generated once and persisted in DATA_DIR), `SCAN_INTERVAL_MINUTES` (default 60, 0 disables), `FFMPEG_PATH`/`FFPROBE_PATH` (default `ffmpeg`/`ffprobe` on PATH), `CORS_ORIGIN` (default `*`).
+- Docker image contains ffmpeg. Volumes: `/media` (read-only), `/host` (read-only, the folder tree offered by the folder picker) and `/data`.
+- Scans every library on startup and on interval; probes with ffprobe (duration, width, height, codecs). Extracts video thumbnail (frame at 10% duration) to `DATA_DIR/cache/thumbs/<id>.jpg`. Uses embedded cover art for audio if present.
 - Media kinds by extension:
   - video: mp4 m4v mkv avi mov webm wmv flv ts m2ts mpg mpeg 3gp
   - audio: mp3 flac m4a aac ogg opus wav wma alac
@@ -31,6 +31,14 @@ home-centre/
 - Sidecar subtitles: `<basename>.srt` / `<basename>.vtt` / `<basename>.<lang>.srt` next to the video.
 - TV-series detection from filename/folder: `S01E02`, `1x02`. Movies: everything else under video.
 - IDs are stable: sha1 of absolute path, hex, first 16 chars.
+
+## Libraries (media folders)
+
+- Libraries are persisted in SQLite (`libraries` table: `id`, `name`, `path` UNIQUE, `created_at`). The DB is the source of truth; the scanner reads it on every scan.
+- On the very first start (empty table, never seeded before) the table is seeded from `MEDIA_DIRS`: `id` = sha1(path) first 16 hex chars (same scheme as before, so existing media rows and client-held ids stay valid), `name` = basename of the path (`"Media"` for `/media`). Removing every library later does not re-seed.
+- Admins add / change / remove libraries at runtime (endpoints below). New libraries get `id` = sha1(path) as well (a suffix is added in the rare case that id is taken). Changing a library's path **keeps its id**, drops its media rows (with their progress and cached thumbnails) and rescans.
+- A library path must be an existing, readable directory inside `BROWSE_ROOTS` (checked after `fs.realpath`, so `..` and symlinks cannot escape → `403`), must not already be a library and must not be inside or contain another library (`400` with a message saying which). The same folder visible under two mount points (same device + inode) counts as the same folder.
+- Every library change triggers a background scan; if one is already running, exactly one more pass is queued after it (never two at once).
 
 ## Authentication
 
@@ -73,6 +81,18 @@ interface MediaItem {
 interface Library { id: string; name: string; path: string; itemCount: number; }
 
 interface Page<T> { items: T[]; total: number; offset: number; limit: number; }
+
+// Admin folder browser
+interface BrowseRoot { name: string; path: string; }        // name = basename ("Media" for /media)
+interface BrowseDir { name: string; path: string; mediaCount: number; } // media files directly inside (no recursion)
+interface BrowseListing {
+  path: string;              // canonical absolute path (symlinks resolved, expressed under its root)
+  parent: string | null;     // null when `path` is a root
+  dirs: BrowseDir[];         // sub-folders only; sorted case-insensitively; dot-folders, system folders
+                             // (@eaDir, $RECYCLE.BIN, …), unreadable folders and symlinks leaving the roots skipped
+  mediaFiles: number;        // media files directly inside `path` (no recursion)
+  truncated: boolean;        // true when more than 1000 sub-folders exist (only the first 1000 are returned)
+}
 ```
 
 ## Endpoints
@@ -83,8 +103,13 @@ interface Page<T> { items: T[]; total: number; offset: number; limit: number; }
 | GET | `/api/server/info` | `{ "name": "Home Centre", "version": "1.0.0" }` no auth (used by clients to validate server URL) |
 | POST | `/api/auth/login` | see above |
 | GET | `/api/me` | current user |
-| GET | `/api/libraries` | `Library[]` |
+| GET | `/api/libraries` | `Library[]` (from the DB, in creation order) |
+| POST | `/api/libraries` | admin; body `{ "path": string, "name"?: string }` → `201 Library`. Validated as described under Libraries (`400` invalid/missing/duplicate/nested, `403` outside `BROWSE_ROOTS`). Starts a background scan. |
+| PATCH | `/api/libraries/:id` | admin; body `{ "name"?: string, "path"?: string }` → `Library`. Same validation. A new path keeps the id, removes the library's media (+ progress, thumbnails) and rescans. `404` unknown id. |
+| DELETE | `/api/libraries/:id` | admin; → `{ "deleted": true }`. Removes the library, its media, their progress and cached thumbnails. Files on disk are untouched. `404` unknown id. |
 | POST | `/api/libraries/scan` | admin; triggers rescan, returns `202 { "started": true }` |
+| GET | `/api/fs/roots` | admin; `{ "roots": BrowseRoot[] }`, existing `BROWSE_ROOTS` only |
+| GET | `/api/fs/browse` | admin; query `path` (absolute, required) → `BrowseListing`. `400` missing/relative path or not a folder, `403` outside `BROWSE_ROOTS` (including via `..` or symlinks), `404` missing folder |
 | GET | `/api/scan/status` | `{ "running": bool, "lastScanAt": string|null, "itemCount": number }` |
 | GET | `/api/media` | query: `kind`, `libraryId`, `folder`, `q` (search title/filename/artist/album), `sort` = `title`\|`added`\|`modified`\|`size`\|`duration` (default `title`), `order` = `asc`\|`desc`, `offset` (0), `limit` (50, max 500) → `Page<MediaItem>` |
 | GET | `/api/media/recent` | `limit` (20) → `MediaItem[]` newest `addedAt` first |
@@ -103,7 +128,7 @@ interface Page<T> { items: T[]; total: number; offset: number; limit: number; }
 | POST | `/api/users` | admin; `{ username, password, isAdmin }` |
 | DELETE | `/api/users/:id` | admin |
 
-Errors: JSON `{ "error": "message" }` with proper status codes.
+Errors: JSON `{ "error": "message" }` with proper status codes. Non-admins get `403` from every admin endpoint.
 
 ## Client playback rule (all clients)
 

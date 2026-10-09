@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
+import { SKIP_DIRS } from './browse.js';
 import type { Config } from './config.js';
 import { type DB, getSetting, setSetting } from './db.js';
 import { containerName, coverThumbnail, probe, resizeImage, videoThumbnail } from './ffmpeg.js';
@@ -34,11 +35,7 @@ interface FoundFile {
   subtitles: StoredSubtitle[];
 }
 
-const SKIP_DIRS = new Set(['@eaDir', '#recycle', '$RECYCLE.BIN', 'System Volume Information', 'lost+found']);
-
-export function libraryIdForPath(root: string): string {
-  return idForPath(root);
-}
+export { libraryIdForPath } from './libraries.js';
 
 export function subtitleId(subPath: string): string {
   return crypto.createHash('sha1').update(subPath).digest('hex').slice(0, 12);
@@ -117,18 +114,47 @@ export class Scanner {
     return (this.db.prepare('SELECT COUNT(*) AS n FROM media').get() as { n: number }).n;
   }
 
+  /** Libraries from the DB (source of truth) with their item counts. Read fresh on every scan. */
   libraries(): Library[] {
-    const counts = new Map<string, number>();
-    for (const row of this.db.prepare('SELECT library_id, COUNT(*) AS n FROM media GROUP BY library_id').all() as {
-      library_id: string;
-      n: number;
-    }[]) {
-      counts.set(row.library_id, row.n);
+    return this.db
+      .prepare(
+        `SELECT l.id, l.name, l.path, (SELECT COUNT(*) FROM media m WHERE m.library_id = l.id) AS itemCount
+         FROM libraries l ORDER BY l.created_at, l.rowid`,
+      )
+      .all() as Library[];
+  }
+
+  library(id: string): Library | null {
+    return this.libraries().find((l) => l.id === id) ?? null;
+  }
+
+  /**
+   * Remove every indexed item of a library (progress rows go with them via ON DELETE CASCADE)
+   * and, best-effort, their cached thumbnails. Returns the number of items removed.
+   */
+  removeLibraryMedia(libraryId: string): number {
+    const ids = (this.db.prepare('SELECT id FROM media WHERE library_id = ?').all(libraryId) as { id: string }[]).map(
+      (r) => r.id,
+    );
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM progress WHERE media_id IN (SELECT id FROM media WHERE library_id = ?)').run(libraryId);
+      this.db.prepare('DELETE FROM media WHERE library_id = ?').run(libraryId);
+    })();
+    if (ids.length > 0) void this.removeThumbs(new Set(ids));
+    return ids.length;
+  }
+
+  private async removeThumbs(ids: Set<string>): Promise<void> {
+    try {
+      for (const name of await fs.promises.readdir(this.thumbsDir)) {
+        const id = name.slice(0, 16);
+        if (ids.has(id) && (name === `${id}.jpg` || name.startsWith(`${id}_w`))) {
+          await fs.promises.rm(path.join(this.thumbsDir, name), { force: true });
+        }
+      }
+    } catch {
+      /* best-effort */
     }
-    return this.config.mediaDirs.map((root) => {
-      const id = libraryIdForPath(root);
-      return { id, name: path.basename(root) || root, path: root, itemCount: counts.get(id) ?? 0 };
-    });
   }
 
   thumbPath(id: string): string {

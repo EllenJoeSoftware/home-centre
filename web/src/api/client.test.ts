@@ -66,3 +66,33 @@ describe("request", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 });
+
+describe("library management endpoints", () => {
+  const capture = (status: number, body: unknown) => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(body), { status }));
+    vi.stubGlobal("fetch", fetchMock);
+    return () => fetchMock.mock.calls.map((c) => c as unknown as [string, RequestInit]);
+  };
+
+  it("uses the documented methods, paths and bodies", async () => {
+    setToken("tok");
+    const calls = capture(200, {});
+    await api.fsRoots();
+    await api.fsBrowse("/host/Movies & TV");
+    await api.createLibrary({ path: "/host/Movies", name: "Films" });
+    await api.updateLibrary("abc", { path: "/host/Music" });
+    await api.deleteLibrary("abc");
+    expect(calls().map(([url, init]) => [init.method, url, init.body ?? null])).toEqual([
+      ["GET", "/api/fs/roots", null],
+      ["GET", "/api/fs/browse?path=%2Fhost%2FMovies+%26+TV", null],
+      ["POST", "/api/libraries", JSON.stringify({ path: "/host/Movies", name: "Films" })],
+      ["PATCH", "/api/libraries/abc", JSON.stringify({ path: "/host/Music" })],
+      ["DELETE", "/api/libraries/abc", null],
+    ]);
+  });
+
+  it("surfaces server validation messages", async () => {
+    capture(400, { error: 'This folder is inside the library "Movies" (/host/Movies)' });
+    await expect(api.createLibrary({ path: "/host/Movies/Extras" })).rejects.toThrow(/inside the library/);
+  });
+});

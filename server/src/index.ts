@@ -20,7 +20,14 @@ async function main(): Promise<void> {
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
 
   await app.listen({ port: config.port, host: config.host });
-  app.log.info({ mediaDirs: config.mediaDirs, dataDir: config.dataDir }, 'Home Centre server ready');
+  app.log.info(
+    {
+      libraries: ctx.libraries.list().map((l) => l.path),
+      browseRoots: config.browseRoots,
+      dataDir: config.dataDir,
+    },
+    'Home Centre server ready',
+  );
 
   const runScan = () => {
     ctx.scanner.scan().catch((err: unknown) => app.log.error({ err }, 'scan failed'));
