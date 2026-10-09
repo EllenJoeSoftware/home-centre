@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -109,4 +110,13 @@ export function setSetting(db: DB, key: string, value: string): void {
   db.prepare(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
   ).run(key, value);
+}
+
+/** Stable server UUID, generated on first start and persisted in the settings table (DATA_DIR). */
+export function getOrCreateServerId(db: DB): string {
+  const existing = getSetting(db, 'serverId');
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('serverId', id);
+  return getSetting(db, 'serverId') ?? id;
 }

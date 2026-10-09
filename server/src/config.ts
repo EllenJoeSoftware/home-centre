@@ -18,6 +18,14 @@ export interface Config {
   corsOrigin: string;
   maxTranscodes: number;
   logLevel: string;
+  /** Display name in /api/server/info and LAN discovery replies. */
+  serverName: string;
+  /** UDP port for LAN discovery; 0 disables it. */
+  discoveryPort: number;
+  /** HTTP port as reachable from the LAN (differs from `port` when Docker maps it). */
+  advertisedPort: number;
+  /** Optional full base URL advertised to clients, e.g. http://192.168.1.10:8096. */
+  publicUrl: string | null;
 }
 
 function pathList(value: string | undefined, fallback: string): string[] {
@@ -38,8 +46,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const mediaDirs = pathList(env.MEDIA_DIRS, '/media');
   const browseRoots = [...new Set(pathList(env.BROWSE_ROOTS, '/media,/host'))];
 
+  const port = intEnv(env.PORT, 8096);
+  const discoveryPort = intEnv(env.DISCOVERY_PORT, 7359);
+
   return {
-    port: intEnv(env.PORT, 8096),
+    port,
     host: env.HOST ?? '0.0.0.0',
     mediaDirs,
     browseRoots,
@@ -53,5 +64,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     corsOrigin: env.CORS_ORIGIN?.trim() || '*',
     maxTranscodes: Math.max(1, intEnv(env.MAX_TRANSCODES, 3)),
     logLevel: env.LOG_LEVEL?.trim() || 'info',
+    serverName: env.SERVER_NAME?.trim() || 'Home Centre',
+    discoveryPort: discoveryPort >= 0 && discoveryPort <= 65535 ? discoveryPort : 7359,
+    advertisedPort: intEnv(env.ADVERTISED_PORT, port),
+    publicUrl: env.PUBLIC_URL?.trim().replace(/\/+$/, '') || null,
   };
 }

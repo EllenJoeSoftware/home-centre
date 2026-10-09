@@ -109,8 +109,18 @@ data class LoginRequest(val username: String, val password: String)
 @Serializable
 data class LoginResponse(val token: String, val user: User)
 
+/** `GET /api/server/info`. `product` / `id` are absent on older servers, hence the defaults. */
 @Serializable
-data class ServerInfo(val name: String, val version: String)
+data class ServerInfo(
+    val name: String = "Home Centre",
+    val version: String = "",
+    val product: String? = null,
+    val id: String? = null,
+) {
+    companion object {
+        const val PRODUCT = "home-centre"
+    }
+}
 
 @Serializable
 data class FolderEntry(val name: String, val path: String)

@@ -49,10 +49,21 @@ enum KeychainTokenStore {
 enum ServerSettings {
     private static let urlKey = "serverURL"
     private static let userKey = "currentUser"
+    private static let lastURLKey = "lastServerURL"
 
     static var serverURL: URL? {
         get { UserDefaults.standard.string(forKey: urlKey).flatMap(URL.init(string:)) }
-        set { UserDefaults.standard.set(newValue?.absoluteString, forKey: urlKey) }
+        set {
+            UserDefaults.standard.set(newValue?.absoluteString, forKey: urlKey)
+            // Remember the last server even after "Change server" clears serverURL,
+            // so LAN discovery can probe it again.
+            if let newValue { UserDefaults.standard.set(newValue.absoluteString, forKey: lastURLKey) }
+        }
+    }
+
+    /// The most recently used server URL (survives "Change server"); probed during LAN discovery.
+    static var lastServerURL: URL? {
+        UserDefaults.standard.string(forKey: lastURLKey).flatMap(URL.init(string:))
     }
 
     static var user: User? {

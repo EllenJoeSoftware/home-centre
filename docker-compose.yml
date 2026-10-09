@@ -14,6 +14,7 @@ services:
     restart: unless-stopped
     ports:
       - "8096:8096"
+      - "7359:7359/udp"               # LAN discovery (apps find the server automatically)
     environment:
       MEDIA_DIRS: /media              # first-run seed only; manage folders in Settings afterwards
       BROWSE_ROOTS: /media,/host      # what the Settings folder picker may show
@@ -23,6 +24,10 @@ services:
       SCAN_INTERVAL_MINUTES: ${SCAN_INTERVAL_MINUTES:-60}
       MAX_TRANSCODES: ${MAX_TRANSCODES:-3}
       TZ: ${TZ:-Africa/Johannesburg}
+      SERVER_NAME: ${SERVER_NAME:-Home Centre}
+      ADVERTISED_PORT: ${ADVERTISED_PORT:-8096}   # HTTP port as seen from the LAN (left side of "8096:8096")
+      PUBLIC_URL: ${PUBLIC_URL:-}                 # e.g. http://192.168.1.10:8096 (recommended on Docker Desktop)
+      DISCOVERY_PORT: 7359
     volumes:
       - ${MEDIA_PATH:-./media}:/media:ro
       - ${BROWSE_PATH:-./media}:/host:ro

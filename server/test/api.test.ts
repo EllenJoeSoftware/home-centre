@@ -36,7 +36,9 @@ describe('API without ffmpeg', () => {
 
   it('serves public endpoints without auth', async () => {
     expect((await srv.app.inject('/api/health')).json()).toEqual({ status: 'ok' });
-    expect((await srv.app.inject('/api/server/info')).json()).toEqual({ name: 'Home Centre', version: '1.0.0' });
+    const info = (await srv.app.inject('/api/server/info')).json() as Record<string, unknown>;
+    expect(info).toEqual({ product: 'home-centre', id: srv.ctx.serverInfo.id, name: 'Home Centre', version: '1.0.0' });
+    expect(info.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   });
 
   it('rejects unauthenticated and bad credentials', async () => {

@@ -52,7 +52,23 @@ Files the device can play natively are streamed directly with HTTP range support
 - **Android phone / Android TV box:** install the APKs from the GitHub Actions run artifacts or from a GitHub Release. On a TV box, sideload with a USB stick or "Send Files to TV", or use `adb install home-centre-tv.apk`. See [`android/README.md`](android/README.md).
 - **iPhone:** install through TestFlight. The `iOS → TestFlight` workflow uploads signed builds to App Store Connect. An unsigned IPA for sideloading is also built. See [`ios/README.md`](ios/README.md).
 
-On first launch, enter the server address (e.g. `http://192.168.1.10:8096`) and log in.
+On first launch the apps list the Home Centre servers they find on your network; pick one and log in. You can still type the address (e.g. `http://192.168.1.10:8096`) by hand.
+
+### Finding the server
+
+The apps scan the Wi-Fi network automatically, using a UDP broadcast on port **7359** (Android phone and TV) plus an HTTP check of port **8096** on every address in the local subnet (all apps). The phone or TV box must be on the same network as the server.
+
+- `SERVER_NAME` in `.env` sets the name shown in the list.
+- On Docker Desktop (Windows/macOS) broadcasts do not reach the container, so the HTTP scan does the work. Set `PUBLIC_URL=http://<this-PC-ip>:8096` in `.env` so the advertised address is right.
+- On Windows, allow both ports through Windows Firewall (run PowerShell as Administrator):
+
+```powershell
+New-NetFirewallRule -DisplayName "Home Centre HTTP" -Direction Inbound -Protocol TCP -LocalPort 8096 -Action Allow -Profile Private
+New-NetFirewallRule -DisplayName "Home Centre Discovery" -Direction Inbound -Protocol UDP -LocalPort 7359 -Action Allow -Profile Private
+```
+
+  Your Wi-Fi network must be set to **Private** in Windows network settings (or add `,Public` to `-Profile`).
+- Set `DISCOVERY_PORT=0` on the server to turn UDP discovery off.
 
 ## GitHub Actions
 

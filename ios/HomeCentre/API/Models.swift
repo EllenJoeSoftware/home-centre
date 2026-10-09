@@ -122,8 +122,16 @@ struct LoginResponse: Codable, Sendable {
 }
 
 struct ServerInfo: Codable, Sendable {
+    /// "home-centre" on every Home Centre server (older servers may omit it).
+    let product: String?
+    /// Stable server UUID, used to de-duplicate LAN discovery results.
+    let id: String?
     let name: String
     let version: String
+
+    static let productIdentifier = "home-centre"
+
+    var isHomeCentre: Bool { product == Self.productIdentifier }
 }
 
 struct HealthResponse: Codable, Sendable {

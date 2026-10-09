@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,14 +25,21 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -46,7 +54,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,12 +69,15 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.Button
 import androidx.tv.material3.Icon
+import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import com.ellenjoe.homecentre.core.HomeCentre
 import com.ellenjoe.homecentre.core.data.HomeCentreRepository
 import com.ellenjoe.homecentre.core.data.userMessage
+import com.ellenjoe.homecentre.core.discovery.DiscoveryController
 import com.ellenjoe.homecentre.core.model.MediaItem
 import com.ellenjoe.homecentre.core.model.MediaKind
 import com.ellenjoe.homecentre.core.model.SeriesSummary
@@ -94,23 +107,111 @@ fun TvSetupScreen(onConnected: () -> Unit) {
     val scope = rememberCoroutineScope()
     var url by rememberSaveable { mutableStateOf(repo.session.value.serverUrl ?: "http://") }
     var busy by remember { mutableStateOf(false) }
+    var connectingTo by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    val focus = remember { FocusRequester() }
-    AutoFocus(focus)
+    val fieldFocus = remember { FocusRequester() }
+    val firstServerFocus = remember { FocusRequester() }
+    AutoFocus(fieldFocus)
 
-    fun connect() {
-        if (busy) return
-        busy = true; error = null
-        scope.launch {
-            try { repo.connect(url); onConnected() } catch (e: Exception) { error = e.userMessage() } finally { busy = false }
+    // Once the user starts working with the address field we never move focus away from it.
+    var userUsedField by rememberSaveable { mutableStateOf(false) }
+    var autoFocusedServer by rememberSaveable { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val discovery = remember {
+        DiscoveryController(HomeCentre.discovery(context), scope) { listOfNotNull(repo.session.value.serverUrl) }
+    }
+    DisposableEffect(discovery) {
+        discovery.start()
+        onDispose { discovery.stop() }
+    }
+    val found by discovery.state.collectAsState()
+
+    val hasServers = found.servers.isNotEmpty()
+    LaunchedEffect(hasServers) {
+        if (hasServers && !autoFocusedServer && !userUsedField) {
+            autoFocusedServer = true
+            repeat(5) {
+                if (runCatching { firstServerFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+                delay(50)
+            }
         }
     }
 
-    TvFormScaffold("Connect to your server", "Enter the address shown by your Home Centre server, e.g. http://192.168.1.10:8096") {
-        TvTextField(url, { url = it }, "Server address", Modifier.focusRequester(focus),
-            keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go, onImeAction = ::connect)
+    fun connect(target: String = url, fromDiscovery: Boolean = false) {
+        if (busy) return
+        busy = true; error = null
+        connectingTo = if (fromDiscovery) target else null
+        scope.launch {
+            try {
+                repo.connect(target); discovery.stop(); onConnected()
+            } catch (e: Exception) {
+                error = e.userMessage()
+            } finally {
+                busy = false; connectingTo = null
+            }
+        }
+    }
+
+    TvFormScaffold(
+        "Connect to your server",
+        "Pick a server found on your network, or enter the address shown by your Home Centre server, e.g. http://192.168.1.10:8096",
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text("Servers on your network", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            OutlinedButton(onClick = discovery::start) {
+                Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(if (found.scanning) "Searching…" else "Search again")
+            }
+        }
+        Column(
+            Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            found.servers.forEachIndexed { index, server ->
+                key(server.key) {
+                    ListItem(
+                        selected = false,
+                        onClick = { connect(server.url, fromDiscovery = true) },
+                        enabled = !busy || connectingTo == server.url,
+                        headlineContent = { Text(server.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        supportingContent = {
+                            Text(
+                                if (connectingTo == server.url) "Connecting…" else server.url,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        leadingContent = { Icon(Icons.Filled.Dns, contentDescription = null, tint = TvAccent) },
+                        modifier = if (index == 0) Modifier.focusRequester(firstServerFocus) else Modifier,
+                    )
+                }
+            }
+            if (found.servers.isEmpty()) {
+                Text(
+                    if (found.scanning) "Searching…"
+                    else "No servers found. Make sure the TV and the server are on the same network.",
+                    color = TvMuted,
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        TvTextField(
+            url,
+            { url = it; userUsedField = true },
+            "Or enter the server address",
+            Modifier
+                .focusRequester(fieldFocus)
+                .onPreviewKeyEvent { ev ->
+                    val code = ev.nativeKeyEvent.keyCode
+                    if (code == NativeKeyEvent.KEYCODE_DPAD_CENTER || code == NativeKeyEvent.KEYCODE_ENTER) userUsedField = true
+                    false
+                },
+            keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go, onImeAction = { connect() },
+        )
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Button(onClick = ::connect, enabled = !busy) { Text(if (busy) "Connecting…" else "Connect") }
+        Button(onClick = { connect() }, enabled = !busy) { Text(if (busy && connectingTo == null) "Connecting…" else "Connect") }
     }
 }
 

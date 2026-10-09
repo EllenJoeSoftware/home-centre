@@ -26,7 +26,8 @@ ENV NODE_ENV=production \
     PORT=8096 \
     MEDIA_DIRS=/media \
     BROWSE_ROOTS=/media,/host \
-    DATA_DIR=/data
+    DATA_DIR=/data \
+    DISCOVERY_PORT=7359
 
 WORKDIR /app
 COPY --from=build /app/package.json ./
@@ -38,6 +39,7 @@ RUN mkdir -p /media /host /data && chown node:node /data
 USER node
 
 EXPOSE 8096
+EXPOSE 7359/udp
 VOLUME ["/media", "/data"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

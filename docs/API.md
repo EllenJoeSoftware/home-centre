@@ -100,7 +100,7 @@ interface BrowseListing {
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/health` | `{ "status": "ok" }` no auth |
-| GET | `/api/server/info` | `{ "name": "Home Centre", "version": "1.0.0" }` no auth (used by clients to validate server URL) |
+| GET | `/api/server/info` | `{ "product": "home-centre", "id": "<uuid>", "name": "Home Centre", "version": "1.0.0" }` no auth (used by clients to validate server URL and by discovery). `id` is a stable UUID persisted in DATA_DIR; `name` comes from `SERVER_NAME` (default "Home Centre"). Clients identify a Home Centre server by `product == "home-centre"`. |
 | POST | `/api/auth/login` | see above |
 | GET | `/api/me` | current user |
 | GET | `/api/libraries` | `Library[]` (from the DB, in creation order) |
@@ -140,9 +140,30 @@ Errors: JSON `{ "error": "message" }` with proper status codes. Non-admins get `
 
 ## Client UX (all apps)
 
-- First launch: enter server URL (e.g. `http://192.168.1.10:8096`), validate via `/api/server/info`, then login. Persist URL + token.
+- First launch: list servers found on the local network (see "LAN discovery") and let the user pick one, or enter server URL (e.g. `http://192.168.1.10:8096`), validate via `/api/server/info`, then login. Persist URL + token.
 - Home: "Continue watching", "Recently added", then sections for Movies, TV Shows, Music, Photos.
 - Browse by kind, by folder, search.
 - Detail screen → Play.
 - Video player with seek, subtitles, resume. Audio player with queue (play folder/album). Photo viewer with swipe.
 - Branding: name "Home Centre", dark theme, accent colour `#E50914`-ish red is NOT used; use teal `#14B8A6` accent on near-black `#0B0F14` background.
+
+## LAN discovery
+
+Lets the apps find servers on the same network without typing an address.
+
+### Server
+- Listens for UDP datagrams on `0.0.0.0:DISCOVERY_PORT` (env, default **7359**; `0` disables).
+- Request payload: the ASCII bytes `HOMECENTRE_DISCOVER` (ignore anything else, and never reply to more than ~20 packets/second in total).
+- Reply (unicast UDP to the sender's address and port), UTF-8 JSON:
+  `{ "product": "home-centre", "id": "<uuid>", "name": "Home Centre", "version": "1.0.0", "port": 8096, "url": null }`
+  - `port` = `ADVERTISED_PORT` env (default = `PORT`), i.e. the HTTP port as reachable from the LAN (differs if Docker maps it).
+  - `url` = `PUBLIC_URL` env if set (e.g. `http://192.168.1.10:8096`), else `null`.
+- Env `SERVER_NAME` (default "Home Centre") is the display name in both the UDP reply and `/api/server/info`.
+- docker-compose publishes `7359:7359/udp`. On Docker Desktop (Windows/macOS) LAN broadcasts do not reach containers, which is why clients also do the HTTP scan below; on Linux the UDP path works (or use `network_mode: host`).
+
+### Clients (Android phone, Android TV, iPhone)
+Run both methods at once, merge results, de-duplicate by `id`, show each server as soon as it is found, stop after ~6 s total. Show a "Search again" action.
+1. **UDP broadcast** (Android/TV only — iOS needs a special Apple multicast entitlement, so iOS skips this): send `HOMECENTRE_DISCOVER` to `255.255.255.255:7359` and to the Wi-Fi/Ethernet subnet broadcast address, listen 2.5 s for replies. Server URL = `url` if non-null, else `http://<reply source IP>:<port>`.
+2. **HTTP scan**: for every host address in the device's own IPv4 subnet (if the prefix is shorter than /24, scan only the /24 containing the device), `GET http://<ip>:8096/api/server/info` with ~800 ms connect+read timeout, at most 64 requests in flight; accept when `product == "home-centre"`. Skip the device's own address. Also probe the previously saved server URL if any.
+- Found entries show `name`, URL, and are tappable / D-pad focusable; choosing one validates via `/api/server/info` and continues to login. Manual URL entry remains available.
+- If nothing is found: show a short hint ("Make sure the phone and the server are on the same Wi-Fi network") and keep the manual entry field.

@@ -3,19 +3,27 @@ import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { Auth, authHook } from './auth.js';
 import { FsBrowser } from './browse.js';
 import type { Config } from './config.js';
-import { type DB, openDb } from './db.js';
+import { type DB, getOrCreateServerId, openDb } from './db.js';
 import { HttpError } from './errors.js';
 import { LibraryStore } from './libraries.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerLibraryRoutes } from './routes/libraries.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerPlaybackRoutes } from './routes/playback.js';
-import { registerSystemRoutes } from './routes/system.js';
+import { PRODUCT, SERVER_VERSION, registerSystemRoutes } from './routes/system.js';
 import { Scanner } from './scanner.js';
 import { TranscodeManager } from './transcode.js';
 
+export interface ServerInfo {
+  product: typeof PRODUCT;
+  id: string;
+  name: string;
+  version: string;
+}
+
 export interface AppContext {
   config: Config;
+  serverInfo: ServerInfo;
   db: DB;
   auth: Auth;
   scanner: Scanner;
@@ -63,7 +71,13 @@ export async function buildApp(config: Config, opts: BuildOptions = {}): Promise
   if (seeded > 0) app.log.info({ mediaDirs: config.mediaDirs }, 'seeded libraries from MEDIA_DIRS');
   const scanner = new Scanner(db, config, app.log);
   const transcoder = new TranscodeManager(config, app.log);
-  const ctx: AppContext = { config, db, auth, scanner, libraries, browser, transcoder };
+  const serverInfo: ServerInfo = {
+    product: PRODUCT,
+    id: getOrCreateServerId(db),
+    name: config.serverName,
+    version: SERVER_VERSION,
+  };
+  const ctx: AppContext = { config, serverInfo, db, auth, scanner, libraries, browser, transcoder };
 
   await app.register(cors, {
     origin: config.corsOrigin === '*' ? '*' : config.corsOrigin.split(',').map((o) => o.trim()),

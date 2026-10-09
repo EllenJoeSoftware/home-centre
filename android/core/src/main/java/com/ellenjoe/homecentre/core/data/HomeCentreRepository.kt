@@ -95,6 +95,10 @@ class HomeCentreRepository(private val settingsStore: SettingsStore) {
         val base = ApiClient.normalizeServerUrl(input)
             ?: throw IllegalArgumentException("Invalid server address")
         val info = apiFor(base).serverInfo()
+        // Older servers omit `product`; anything that reports a different product is not ours.
+        if (info.product != null && info.product != ServerInfo.PRODUCT) {
+            throw IllegalArgumentException("Not a Home Centre server")
+        }
         val url = base.toString()
         settingsStore.setServerUrl(url)
         val prev = _session.value
