@@ -1,0 +1,92 @@
+name: iOS → TestFlight
+
+# Signed App Store build uploaded to App Store Connect / TestFlight.
+# Run manually from the Actions tab, or push a tag like v1.0.0.
+# Same setup as Remote for Mi Box: automatic cloud-managed signing with the
+# App Store Connect API key, no certificates or profiles to maintain.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    runs-on: macos-26 # Xcode 26 / iOS 26 SDK, required for App Store uploads
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: ios
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets are set
+        run: |
+          for v in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID; do
+            [ -n "${!v}" ] || { echo "::error::Missing repository secret $v"; exit 1; }
+          done
+          [ -n "${{ secrets.ASC_KEY_P8 }}" ] || { echo "::error::Missing repository secret ASC_KEY_P8"; exit 1; }
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Work out version and build number
+        run: |
+          VERSION="$(grep -E '^[[:space:]]*MARKETING_VERSION:' project.yml | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME#v}"; fi
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=${{ github.run_number }}" >> "$GITHUB_ENV"
+          echo "Version $VERSION, build ${{ github.run_number }}"
+
+      - name: Install App Store Connect API key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
+
+      - name: Archive and sign (automatic, cloud-managed signing)
+        run: |
+          set -o pipefail
+          xcodebuild -project HomeCentre.xcodeproj -scheme HomeCentre \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/HomeCentre.xcarchive" archive \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="$APP_VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Export and upload to App Store Connect
+        run: |
+          sed "s/TEAM_ID/$APPLE_TEAM_ID/" ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/HomeCentre.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/ipa" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "### Uploaded Home Centre $APP_VERSION ($BUILD_NUMBER) to App Store Connect" >> "$GITHUB_STEP_SUMMARY"
+          echo "It appears in TestFlight after Apple finishes processing (usually 5–30 min)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove API key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"

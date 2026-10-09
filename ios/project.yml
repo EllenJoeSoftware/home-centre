@@ -3,7 +3,7 @@
 name: HomeCentre
 
 options:
-  bundleIdPrefix: com.ellenjoe
+  bundleIdPrefix: com.ellenjoesoftware
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
@@ -56,7 +56,7 @@ targets:
         NSLocalNetworkUsageDescription: Home Centre connects to your media server on the local network to browse and stream your media.
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ellenjoe.homecentre
+        PRODUCT_BUNDLE_IDENTIFIER: com.ellenjoesoftware.homecentre
         PRODUCT_NAME: HomeCentre
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -64,8 +64,8 @@ targets:
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
         CODE_SIGN_STYLE: Automatic
-        # Set your Team ID here (or via -allowProvisioningUpdates/DEVELOPMENT_TEAM=...) to run on a device.
-        DEVELOPMENT_TEAM: ""
+        # EllenJoe Software team. CI overrides this from the APPLE_TEAM_ID secret.
+        DEVELOPMENT_TEAM: 68ML476677
     scheme:
       testTargets:
         - HomeCentreTests
@@ -81,6 +81,6 @@ targets:
       - target: HomeCentre
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ellenjoe.homecentre.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ellenjoesoftware.homecentre.tests
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic

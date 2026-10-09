@@ -17,3 +17,6 @@ android/local.properties
 ios/*.xcodeproj
 ios/build/
 ios/DerivedData/
+_to_delete/home-centre.tar.gz
+_to_delete/home-centre-final.tar.gz
+_to_delete/home-centre-v2.tar.gz

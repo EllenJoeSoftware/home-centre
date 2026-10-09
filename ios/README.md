@@ -69,28 +69,27 @@ An unsigned IPA cannot be installed directly. Sideload it with
 [AltStore](https://altstore.io) or [Sideloadly](https://sideloadly.io), which re-sign it with your
 Apple ID (free accounts: the app expires after 7 days and must be refreshed).
 
-### Signed IPA / TestFlight (optional, later)
+### TestFlight / App Store
 
-1. In the Apple Developer portal create the App ID `com.ellenjoe.homecentre`, an *Apple Distribution*
-   certificate and an *App Store* (or *Ad Hoc*) provisioning profile named e.g. `HomeCentre Distribution`.
-2. Add repository secrets: `IOS_CERT_P12_BASE64` (`base64 -i cert.p12`), `IOS_CERT_PASSWORD`,
-   `IOS_PROVISION_PROFILE_BASE64`, `IOS_TEAM_ID`, and for TestFlight an App Store Connect API key:
-   `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_BASE64`.
-3. Add `ios/ExportOptions.plist`, for example:
+`.github/workflows/ios-testflight.yml` builds a signed App Store build and uploads it to App Store
+Connect. It works the same way as Remote for Mi Box: automatic, cloud-managed signing with the
+App Store Connect API key, so there are no certificates or provisioning profiles to look after.
 
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-   <plist version="1.0"><dict>
-     <key>method</key><string>app-store-connect</string>  <!-- or release-testing (ad hoc) -->
-     <key>signingStyle</key><string>manual</string>
-     <key>teamID</key><string>YOURTEAMID</string>
-     <key>provisioningProfiles</key><dict>
-       <key>com.ellenjoe.homecentre</key><string>HomeCentre Distribution</string>
-     </dict>
-   </dict></plist>
-   ```
-4. Uncomment the signing steps at the bottom of `.github/workflows/ios.yml`.
+- Team: EllenJoe Software (`68ML476677`). Bundle ID: `com.ellenjoesoftware.homecentre`
+- Runs on `macos-26` (Xcode 26, which App Store uploads require)
+- Trigger: **Actions → iOS → TestFlight → Run workflow**, or push a `v*` tag.
+- Build number = workflow run number. Version = the tag (`v1.2.0` → `1.2.0`), or `MARKETING_VERSION` in `project.yml` for manual runs.
+
+One-time setup:
+
+1. Add these 4 secrets to the GitHub repo. The values are the same as in `EllenJoeSoftware/MiRemote`.
+   You can also make them organisation secrets so both repos share them.
+   `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (the full text of the `.p8` file).
+2. In App Store Connect, go to **Apps → + → New App**: iOS, name *Home Centre* (or another name if
+   that one is taken), bundle ID `com.ellenjoesoftware.homecentre`, SKU e.g. `homecentre`. The first
+   archive registers the bundle ID automatically, so if it isn't in the dropdown yet, run the
+   workflow once and then create the app.
+3. Run the workflow. The build shows up in TestFlight after Apple finishes processing it.
 
 ## Notes
 

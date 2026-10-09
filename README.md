@@ -38,7 +38,7 @@ Files the device can play natively are streamed directly with HTTP range support
 ## Apps
 
 - **Android phone / Android TV box:** install the APKs from the GitHub Actions run artifacts or from a GitHub Release. On a TV box, sideload with a USB stick or "Send Files to TV", or use `adb install home-centre-tv.apk`. See [`android/README.md`](android/README.md).
-- **iPhone:** CI produces an unsigned IPA. Sideload it with AltStore or Sideloadly, or add signing secrets for TestFlight. See [`ios/README.md`](ios/README.md).
+- **iPhone:** install through TestFlight. The `iOS → TestFlight` workflow uploads signed builds to App Store Connect. An unsigned IPA for sideloading is also built. See [`ios/README.md`](ios/README.md).
 
 On first launch, enter the server address (e.g. `http://192.168.1.10:8096`) and log in.
 
@@ -50,13 +50,14 @@ On first launch, enter the server address (e.g. `http://192.168.1.10:8096`) and 
 | `web.yml` | changes in `web/**`, `v*` tags | typecheck/tests/build → multi-arch image pushed to GHCR |
 | `android.yml` | changes in `android/**`, `v*` tags | unit tests → mobile + TV APK artifacts; GitHub Release on tags |
 | `ios.yml` | changes in `ios/**`, `v*` tags | simulator tests → unsigned IPA artifact; GitHub Release on tags |
+| `ios-testflight.yml` | manual run, `v*` tags | signed App Store build uploaded to TestFlight (see `ios/README.md`) |
 
 **First push:** every workflow runs on its first push to `main`. To publish a release with all apps attached, push a tag such as `git tag v1.0.0 && git push origin v1.0.0`.
 
 **Optional secrets**
 
 - Android release signing: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Without them, APKs are signed with a throwaway debug key, so each new release has to be uninstalled before the next one can be installed.
-- iOS signing: see `ios/README.md`.
+- iOS TestFlight: `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`. These are the same values as MiRemote; see `ios/README.md`.
 
 GHCR packages are private by default. To pull them without logging in, make them public under the org's **Packages** settings, or run `docker login ghcr.io` first.
 

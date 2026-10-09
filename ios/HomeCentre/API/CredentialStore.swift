@@ -4,7 +4,7 @@ import Security
 /// Stores the JWT in the Keychain (this device only, available after first unlock so
 /// background audio progress reports still work while locked).
 enum KeychainTokenStore {
-    private static let service = "com.ellenjoe.homecentre"
+    private static let service = "com.ellenjoesoftware.homecentre"
     private static let account = "auth-token"
 
     private static var baseQuery: [String: Any] {
