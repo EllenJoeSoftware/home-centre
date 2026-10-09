@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 320x180 Android TV launcher banner: logo + "HOME CENTRE" drawn as stroke letters. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#0B0F14" android:pathData="M0,0 L320,0 L320,180 L0,180 Z" />
+    <path android:fillColor="#14B8A6" android:pathData="M0,170 L320,170 L320,180 L0,180 Z" />
+    <!-- logo: roof, house outline, play triangle -->
+    <path android:fillColor="#14B8A6" android:pathData="M64,46 L102,76 L93,76 L64,54 L35,76 L26,76 Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#14B8A6" android:strokeWidth="5"
+        android:pathData="M38,74 L38,124 L90,124 L90,74" />
+    <path android:fillColor="#FFFFFF" android:pathData="M56,84 L56,114 L80,99 Z" />
+    <!-- wordmark -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="4"
+        android:strokeLineCap="square" android:strokeLineJoin="miter"
+        android:pathData="M128.0,50.0 L128.0,82.0 M147.2,50.0 L147.2,82.0 M128.0,66.0 L147.2,66.0 M158.0,50.0 L177.2,50.0 L177.2,82.0 L158.0,82.0 Z M188.0,82.0 L188.0,50.0 L197.6,66.0 L207.2,50.0 L207.2,82.0 M237.2,50.0 L218.0,50.0 L218.0,82.0 L237.2,82.0 M218.0,66.0 L232.4,66.0" />
+    <path android:fillColor="#00000000" android:strokeColor="#14B8A6" android:strokeWidth="4"
+        android:strokeLineCap="square" android:strokeLineJoin="miter"
+        android:pathData="M147.2,98.0 L128.0,98.0 L128.0,130.0 L147.2,130.0 M177.2,98.0 L158.0,98.0 L158.0,130.0 L177.2,130.0 M158.0,114.0 L172.4,114.0 M188.0,130.0 L188.0,98.0 L207.2,130.0 L207.2,98.0 M218.0,98.0 L237.2,98.0 M227.6,98.0 L227.6,130.0 M248.0,130.0 L248.0,98.0 L267.2,98.0 L267.2,114.0 L248.0,114.0 M254.4,114.0 L267.2,130.0 M297.2,98.0 L278.0,98.0 L278.0,130.0 L297.2,130.0 M278.0,114.0 L292.4,114.0" />
+</vector>

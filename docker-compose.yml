@@ -1,0 +1,42 @@
+# Home Centre — server + web interface
+#
+#   1. Copy .env.example to .env and set MEDIA_PATH and ADMIN_PASSWORD
+#   2. docker compose up -d
+#   3. Open http://<this-machine-ip>:8080  (apps connect to http://<this-machine-ip>:8096)
+#
+# To build locally instead of pulling from GHCR:  docker compose up -d --build
+
+services:
+  server:
+    image: ghcr.io/${GHCR_OWNER:-ellenjoesoftware}/home-centre-server:${HC_VERSION:-latest}
+    build: ./server
+    container_name: home-centre-server
+    restart: unless-stopped
+    ports:
+      - "8096:8096"
+    environment:
+      MEDIA_DIRS: /media
+      DATA_DIR: /data
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      SCAN_INTERVAL_MINUTES: ${SCAN_INTERVAL_MINUTES:-60}
+      MAX_TRANSCODES: ${MAX_TRANSCODES:-3}
+      TZ: ${TZ:-Africa/Johannesburg}
+    volumes:
+      - ${MEDIA_PATH:-./media}:/media:ro
+      - home-centre-data:/data
+
+  web:
+    image: ghcr.io/${GHCR_OWNER:-ellenjoesoftware}/home-centre-web:${HC_VERSION:-latest}
+    build: ./web
+    container_name: home-centre-web
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    environment:
+      API_UPSTREAM: http://server:8096
+
+volumes:
+  home-centre-data:

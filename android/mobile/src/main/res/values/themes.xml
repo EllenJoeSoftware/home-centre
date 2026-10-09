@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.HomeCentre" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/hc_background</item>
+        <item name="android:statusBarColor">@color/hc_background</item>
+        <item name="android:navigationBarColor">@color/hc_background</item>
+        <item name="android:colorAccent">@color/hc_accent</item>
+    </style>
+
+    <style name="Theme.HomeCentre.Player">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+</resources>

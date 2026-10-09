@@ -1,0 +1,41 @@
+# Normalise line endings in the repository; files that are executed or parsed on Linux/macOS
+# (CI runners, Docker images) must keep LF even when checked out on Windows.
+* text=auto
+
+*.sh                text eol=lf
+gradlew             text eol=lf
+*.yml               text eol=lf
+*.yaml              text eol=lf
+Dockerfile          text eol=lf
+*.dockerfile        text eol=lf
+.dockerignore       text eol=lf
+nginx.conf          text eol=lf
+*.conf              text eol=lf
+*.conf.template     text eol=lf
+*.template          text eol=lf
+.env.example        text eol=lf
+*.swift             text eol=lf
+*.kts               text eol=lf
+*.properties        text eol=lf
+*.pbxproj           text eol=lf -merge
+
+# Windows-only scripts
+*.bat               text eol=crlf
+*.cmd               text eol=crlf
+gradlew.bat         text eol=crlf
+
+# Binary files
+*.jar               binary
+*.png               binary
+*.jpg               binary
+*.jpeg              binary
+*.gif               binary
+*.webp              binary
+*.ico               binary
+*.keystore          binary
+*.jks               binary
+*.p12               binary
+*.mp4               binary
+*.mp3               binary
+*.ipa               binary
+*.apk               binary

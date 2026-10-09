@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.data/
+.env
+media/
+.DS_Store
+Thumbs.db
+
+# Android
+android/.gradle/
+android/**/build/
+android/local.properties
+*.keystore
+*.jks
+
+# iOS
+ios/*.xcodeproj
+ios/build/
+ios/DerivedData/

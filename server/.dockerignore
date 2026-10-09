@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+test
+*.log
+*.db
+.data
+.git
+.gitignore
+.dockerignore
+Dockerfile
+vitest.config.ts

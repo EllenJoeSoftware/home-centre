@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.HomeCentreTv" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/hc_background</item>
+        <item name="android:colorAccent">@color/hc_accent</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+    <style name="Theme.HomeCentreTv.Player">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>
