@@ -1,8 +1,11 @@
 package com.ellenjoe.homecentre.ui.theme
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 
 val HcBackground = Color(0xFF0B0F14)
@@ -31,5 +34,8 @@ private val colors = darkColorScheme(
 
 @Composable
 fun HomeCentreTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = colors, content = content)
+    MaterialTheme(colorScheme = colors) {
+        // Surface sets LocalContentColor to onBackground so text is never default-black on the dark background.
+        Surface(modifier = Modifier.fillMaxSize(), color = colors.background, contentColor = colors.onBackground, content = content)
+    }
 }

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.Card
 import androidx.tv.material3.Icon
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import androidx.tv.material3.darkColorScheme
@@ -71,7 +73,8 @@ import com.ellenjoe.homecentre.core.model.MediaKind
 val TvBackground = Color(0xFF0B0F14)
 val TvAccent = Color(0xFF14B8A6)
 val TvSurface = Color(0xFF1C2530)
-val TvMuted = Color(0xFF9AA7B4)
+val TvMuted = Color(0xFFB4C0CC)
+val TvOnBackground = Color(0xFFF1F5F9)
 
 @Composable
 fun TvTheme(content: @Composable () -> Unit) {
@@ -80,16 +83,20 @@ fun TvTheme(content: @Composable () -> Unit) {
             primary = TvAccent,
             onPrimary = Color(0xFF00201C),
             background = TvBackground,
-            onBackground = Color(0xFFE6EDF3),
+            onBackground = TvOnBackground,
             surface = TvBackground,
-            onSurface = Color(0xFFE6EDF3),
+            onSurface = TvOnBackground,
             surfaceVariant = TvSurface,
             onSurfaceVariant = TvMuted,
             border = TvAccent,
             error = Color(0xFFF87171),
         ),
     ) {
-        Box(Modifier.fillMaxSize().background(TvBackground)) { content() }
+        // tv-material's Text takes its colour from LocalContentColor, which defaults to black.
+        // Set it to the light foreground so every title/label is readable on the dark background.
+        CompositionLocalProvider(LocalContentColor provides TvOnBackground) {
+            Box(Modifier.fillMaxSize().background(TvBackground)) { content() }
+        }
     }
 }
 
@@ -214,7 +221,7 @@ fun TvMediaCard(
                 }
             }
         }
-        Text(title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(title, style = MaterialTheme.typography.bodyLarge, color = TvOnBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         if (subtitle.isNotEmpty()) {
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TvMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
